@@ -141,6 +141,24 @@ class Shaper(object):
             return AbstractProfileSerializer(self._profile).get_string_representation()
         return AbstractProfileSerializer(self._profile).write_profile_to_file(target_file=output_file)
 
+    def shex_ontology(self, string_output=False, output_file=None):
+        """
+
+        :param string_output:
+        :param output_file:
+        :return:
+        """
+        self._decorate_graph()
+        self._manipulate_shaper_to_adapt_input()
+        return self.shex_graph(string_output=string_output,
+                               output_file=output_file,
+                               output_format=SHEX,
+                               acceptance_threshold=0)
+
+    def _decorate_graph(self):
+        target_nodes = self._
+
+
     def shex_graph(self, string_output=False, output_file=None, output_format=SHEX, acceptance_threshold=0):
         """
         :param string_output:
