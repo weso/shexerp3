@@ -19,9 +19,13 @@ class ClassShexer(object):
                                                                                 original_shape_map=original_shape_map)
 
     def shex_classes(self, acceptance_threshold=0):
+        print(1)
         self._build_shapes(acceptance_threshold)
+        print(2)
         self._clean_shapes()
+        print(3)
         self._sort_shapes()
+        print(4)
 
         return self._shapes_list
 
@@ -60,8 +64,10 @@ class ClassShexer(object):
         if not self._remove_empty_shapes:
             return
         shapes_to_remove = self._detect_shapes_to_remove()
-
+        counter = 0
         while (len(shapes_to_remove) != 0):
+            print(counter)
+            counter += 1
             self._iteration_remove_empty_shapes(shapes_to_remove)
             shapes_to_remove = self._detect_shapes_to_remove()
 

@@ -1,3 +1,4 @@
+requests
 Flask==1.0.3
 Flask-Cors==3.0.7
 rdflib==4.2.2

@@ -5,6 +5,7 @@ class ShapeMapLabelParser(object):
 
     def parse_shape_map_label(self, raw_label):
         if self._is_a_prefixed_uri(raw_label):
+            print(raw_label, "woooooooooo")
             return self._parse_prefixed_label(raw_label)
         return self._parse_unprefixed_label(raw_label)
 
