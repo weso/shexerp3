@@ -1,3 +1,4 @@
+
 from shexer.shaper import Shaper, TURTLE
 from shexer.consts import JSON
 from rdflib import Graph, RDF, URIRef, RDFS, OWL, XSD, Literal
@@ -37,12 +38,12 @@ class OntoShaper(Shaper):
 
         self._original_target_nodes = self._detect_target_nodes()  # List, rdflib_nodes
         self._target_nodes = set()
-        self._fill_kb_with_initial_instances()
-
         self._enrichment_dict = {}
         self._secondary_targets = set()
         self._fake_nodes_dict = {}  # class --> fake_node
         self._reversed_fake_nodes_dict = {}  # fake_node --> class
+
+        self._fill_kb_with_initial_instances()
         self._decorate_graph()
 
 
@@ -70,7 +71,6 @@ class OntoShaper(Shaper):
         :return:
         """
 
-        # TODO CONTINUE HERE!!
         if target_type in self._fake_nodes_dict:
             return
         if self._is_a_literal(target_type):
@@ -83,6 +83,11 @@ class OntoShaper(Shaper):
         if target_type == RDFS.Literal or target_type == RDF.langString or str(target_type).startswith(XSD_NAMESPACE):
             return True
         return False
+
+    def _add_fake_type_to_object(self, target_type):
+        fake_instance = URIRef(str(target_type+"_instance"))
+        self._add_fake_node_to_dict(class_n=target_type, instance_n=fake_instance)
+        self._kb.add((fake_instance, RDF.type, target_type))
 
 
     def _add_fake_node_to_literal(self, target_type):
@@ -114,48 +119,18 @@ class OntoShaper(Shaper):
         self._add_fake_node_to_dict(class_n=target_type,
                                     instance_n=fake)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def _build_rdflib_graph(self, file_format):
-        result = Graph()
-        result.load(self._ontology_file, format=file_format)
-        return result
-
-    def _serialize_graph(self):
-        return self._ontology_graph.serialize(format="turtle")
-
     def _decorate_graph(self):
+        """
+        Fill self._kb with all the triples needed
+
+        :return:
+        """
         self._decorate_target_nodes()
         self._decorate_secondary_targets()
 
     def _decorate_target_nodes(self):
         for a_target_node in self._target_nodes:
-            self._enrichment_dict[a_target_node] = self._locate_external_classes(a_target_node)
+            self._enrichment_dict[a_target_node] = self._locate_classes(a_target_node)
         self._enrich_target_nodes(self._enrichment_dict)
 
     def _decorate_secondary_targets(self):
@@ -164,41 +139,38 @@ class OntoShaper(Shaper):
         temporal_last_depth_explored = set()
         for elem in self._target_nodes:
             temporal_last_depth_explored.add(elem)
-        while self._depth != 0 or len(temporal_last_depth_explored) != 0:
-            nodes_decorated = self._decorate_secondary_layer(temporal_last_depth_explored)
-            temporal_last_depth_explored.clear()
-            for a_node in nodes_decorated:
-                temporal_last_depth_explored.add(a_node)
+
+        self._decorate_secondary_layers(temporal_last_depth_explored)
+
+        # while self._depth != 0 or len(temporal_last_depth_explored) != 0:
+        #     nodes_decorated = self._decorate_secondary_layer(temporal_last_depth_explored)
+        #     temporal_last_depth_explored.clear()
+        #     for a_node in nodes_decorated:
+        #         temporal_last_depth_explored.add(a_node)
 
 
-    def _decorate_secondary_layer(self, seed_nodes_already_decorated):
+    def _decorate_secondary_layers(self, seed_nodes):
+        while self._depth > 1:
+            self._depth -= 1
+            types_to_decorate = self._get_secondary_types_of_seed_nodes(seed_nodes)
+            enrich_dict = {}
+            seed_nodes = set()  # Overwrite seed_nodes, already used to get the types to decorate
+            for a_type in types_to_decorate:
+                if a_type not in self._target_nodes:
+                    self._secondary_targets.add(a_type)  # Update secondary_types set, to build an adequate shape_map
+                seed_nodes.add(a_type)
+                enrich_dict[a_type] = self._locate_classes(a_type)
+            self._enrich_target_nodes(enrich_dict)
+
+
+    def _get_secondary_types_of_seed_nodes(self, seed_nodes):
         result = set()
-        for a_seed_node in seed_nodes_already_decorated:
-            targets = self._get_secondary_targets_of_a_node(a_seed_node)
-            for target_fake in targets:
-                if target_fake not in self._secondary_targets:
-                    print(target_fake, "wooo")
-                    target_fake_class = self._class_of_fake_node(target_fake)
-                    self._secondary_targets.add(target_fake)
-                    result.add(target_fake)
-                    self._enrichment_dict[target_fake] = self._locate_external_classes(target_fake_class)
-                    self._enrich_target_nodes(enrichment_dict={
-                        a_target_fake: self._enrichment_dict[a_target_fake] for a_target_fake in result
-                    })
+        for a_node in seed_nodes:
+            for a_fake_node in self._get_secondary_fake_targets_of_a_node(a_node):
+                result.add(self._class_of_fake_node(a_fake_node))
         return result
 
-            # for a_target_class in self._enrichment_dict[a_seed_node]:
-            #     target_fake = self._fake_nodes_dict[a_target_class]
-            #     if target_fake not in self._secondary_targets:
-            #         self._secondary_targets.add(target_fake)
-            #         result.add(target_fake)
-            #         self._enrichment_dict[target_fake] = self._locate_external_classes(a_target_class)
-            #         self._enrich_target_nodes(enrichment_dict={
-            #             a_target_fake: self._enrichment_dict[a_target_class] for a_target_fake in result
-            #         })
-        # return result
-
-    def _get_secondary_targets_of_a_node(self, target_node):
+    def _get_secondary_fake_targets_of_a_node(self, target_node):
         result = set()
         for a_triple in self._ontology_graph.triples((URIRef(target_node), None, None)):
             if not isinstance(a_triple[2], Literal) and \
@@ -207,44 +179,25 @@ class OntoShaper(Shaper):
                 result.add(a_triple[2])
         return result
 
-    def _belongs_to_excluded_namespace(self, rdflib_node):
-        str_node = str(rdflib_node)
-        for a_namespace in self._namespaces_to_ignore:
-            if str_node.startswith(a_namespace):
-                return True
-        return False
 
     def _enrich_target_nodes(self, enrichment_dict):
-        for a_node_key, extra_classes in enrichment_dict.items():
-            # print(a_node_key, extra_classes)
-            rdflib_node = URIRef(a_node_key)
-            for an_extra_class in extra_classes:
-                rdflib_class = URIRef(an_extra_class)
-                self._add_properties_of_class(rdflib_node, rdflib_class)
+        """
+        It receives a dict of rfdlib_node (class): {rdflib_classes} (every superclass), including the class itslef)
+
+        :param enrichment_dict:
+        :return:
+        """
+        for a_node, classes in enrichment_dict.items():
+            # print(a_node_key, classes)
+            for a_class in classes:
+                # rdflib_class = URIRef(a_class)
+                self._add_properties_of_class(a_node, a_class)
                 # self._add_object_properties(rdflib_node, rdflib_class)
                 # self._add_literal_properties(rdflib_node, rdflib_class)
                 # self._add_general_properties(rdflib_node, rdflib_class)
                 # for a_triple in self._ontology_graph.triples((rdflib_class, None, None)):
                 #     self._ontology_graph.add((rdflib_node, a_triple[1], a_triple[2]))
 
-    def _add_properties_of_class(self, rdflib_node, rdflib_class):
-        for a_triple in self._ontology_graph.triples((None, RDFS.domain, rdflib_class)):
-            target_property = a_triple[0]
-            for a_triple in self._ontology_graph.triples((target_property, RDFS.range, None)):
-                target_type = a_triple[2]
-                self._add_enriched_triple(rdflib_node, target_property, target_type)
-
-    def _add_enriched_triple(self, rdflib_node, target_property, target_type):
-        self._add_fake_node_if_needed(target_type)
-        self._ontology_graph.add((rdflib_node, target_property, self._fake_node_of_a_class(target_type)))
-
-
-
-
-    def _add_fake_type_to_object(self, target_type):
-        fake_instance = URIRef(str(target_type+"_instance"))
-        self._add_fake_node_to_dict(class_n=target_type, instance_n=fake_instance)
-        self._ontology_graph.add((fake_instance, RDF.type, target_type))
 
     def _add_fake_node_to_dict(self, class_n, instance_n):
         self._fake_nodes_dict[class_n] = instance_n
@@ -259,15 +212,13 @@ class OntoShaper(Shaper):
         # print(self._reversed_fake_nodes_dict)
         return self._reversed_fake_nodes_dict[instance_n]
 
-
-
-
-    def _locate_external_classes(self, a_target_node):
+    def _locate_classes(self, a_target_node):
         result = set()
+        result.add(a_target_node)
         for a_triple in self._ontology_graph.triples((URIRef(a_target_node), RDFS.subClassOf, None)):
-            result.add(str(a_triple[2]))
+            result.add(a_triple[2])
             self._retrieve_ontology_if_needed(a_triple[2])
-            for an_elem in self._locate_external_classes(a_triple[2]):
+            for an_elem in self._locate_classes(a_triple[2]):
                 result.add(an_elem)
         return result
 
@@ -280,20 +231,35 @@ class OntoShaper(Shaper):
     def _merge_ontology_in_graph(self, ontology_name):
         self._ontology_graph.parse(self._extra_ontologies_dict[ontology_name])
 
-    # def _download_ontology(self, ontology_name):
-    #     res = requests.get(ontology_name, headers={"accept": "application/rdf+xml"})
-    #     onto = get_ontology(res.text)
-    #     return self._get_str_content_from_owlready_ontology(onto)
+    def _add_properties_of_class(self, rdflib_onto_node, rdflib_class):
+        for a_triple in self._ontology_graph.triples((None, RDFS.domain, rdflib_class)):
+            target_property = a_triple[0]
+            for a_triple in self._ontology_graph.triples((target_property, RDFS.range, None)):
+                target_type = a_triple[2]
+                self._add_enriched_triple(rdflib_onto_node, target_property, target_type)
+
+    def _add_enriched_triple(self, rdflib_node, target_property, target_type):
+        self._add_fake_node_if_needed(rdflib_node)
+        self._add_fake_node_if_needed(target_type)
+        self._kb.add((self._fake_node_of_a_class(rdflib_node), target_property, self._fake_node_of_a_class(target_type)))
 
 
-    # def _get_str_content_from_owlready_ontology(self, owlready_onto):
-    #     tmp_path = "random_file"
-    #     owlready_onto.save(tmp_path, "rdfxml")
-    #     with open(tmp_path, "r", encoding="utf-8") as in_str:
-    #         tmp_result = in_str.read()
-    #     os.remove(tmp_path)
-    #     print(tmp_result)
-    #     return tmp_result
+
+    def _build_rdflib_graph(self, file_format):
+        result = Graph()
+        result.load(self._ontology_file, format=file_format)
+        return result
+
+    def _serialize_graph(self):
+        return self._ontology_graph.serialize(format="turtle")
+
+
+    def _belongs_to_excluded_namespace(self, rdflib_node):
+        str_node = str(rdflib_node)
+        for a_namespace in self._namespaces_to_ignore:
+            if str_node.startswith(a_namespace):
+                return True
+        return False
 
 
     def _get_ontology_name_from_node(self, a_node):
@@ -304,8 +270,8 @@ class OntoShaper(Shaper):
             return str_node[:str_node.rfind("/") + 1]
 
     def _build_onto_shape_map(self):
-        json_map = [self._node_selector_for_a_node(a_node) for a_node in self._target_nodes]
-        #TODO INCLUDE SECONDARY TARGETS
+        json_map = [self._node_selector_for_a_node(a_node) for a_node in self._target_nodes] + \
+                   [self._node_selector_for_a_node(a_node) for a_node in self._secondary_targets]
         return json.dumps(json_map)
 
 
