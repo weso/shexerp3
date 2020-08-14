@@ -37,7 +37,7 @@ class OntoShaper(Shaper):
         self._extra_ontologies_dict = {} if extra_ontologies_dict is None else extra_ontologies_dict
 
         self._original_target_nodes = self._detect_target_nodes()  # List, rdflib_nodes
-        self._target_nodes = set()
+        # self._target_nodes = set()
         self._enrichment_dict = {}
         self._secondary_targets = set()
         self._fake_nodes_dict = {}  # class --> fake_node
@@ -129,7 +129,8 @@ class OntoShaper(Shaper):
         self._decorate_secondary_targets()
 
     def _decorate_target_nodes(self):
-        for a_target_node in self._target_nodes:
+        for a_target_node in self._original_target_nodes:
+            # print("Winba!", a_target_node)
             self._enrichment_dict[a_target_node] = self._locate_classes(a_target_node)
         self._enrich_target_nodes(self._enrichment_dict)
 
@@ -137,7 +138,7 @@ class OntoShaper(Shaper):
         if self._depth <= 1:
             return
         temporal_last_depth_explored = set()
-        for elem in self._target_nodes:
+        for elem in self._original_target_nodes:
             temporal_last_depth_explored.add(elem)
 
         self._decorate_secondary_layers(temporal_last_depth_explored)
@@ -156,7 +157,7 @@ class OntoShaper(Shaper):
             enrich_dict = {}
             seed_nodes = set()  # Overwrite seed_nodes, already used to get the types to decorate
             for a_type in types_to_decorate:
-                if a_type not in self._target_nodes:
+                if a_type not in self._original_target_nodes:
                     self._secondary_targets.add(a_type)  # Update secondary_types set, to build an adequate shape_map
                 seed_nodes.add(a_type)
                 enrich_dict[a_type] = self._locate_classes(a_type)
@@ -188,9 +189,10 @@ class OntoShaper(Shaper):
         :return:
         """
         for a_node, classes in enrichment_dict.items():
-            # print(a_node_key, classes)
+            # print("wiiii", a_node, classes)
             for a_class in classes:
                 # rdflib_class = URIRef(a_class)
+                # print("weeee", a_node, a_class)
                 self._add_properties_of_class(a_node, a_class)
                 # self._add_object_properties(rdflib_node, rdflib_class)
                 # self._add_literal_properties(rdflib_node, rdflib_class)
@@ -207,8 +209,8 @@ class OntoShaper(Shaper):
         return self._fake_nodes_dict[class_n]
 
     def _class_of_fake_node(self, instance_n):
-        if instance_n in self._target_nodes:
-            return instance_n
+        # if instance_n in self._target_nodes:
+        #     return instance_n
         # print(self._reversed_fake_nodes_dict)
         return self._reversed_fake_nodes_dict[instance_n]
 
@@ -234,11 +236,13 @@ class OntoShaper(Shaper):
     def _add_properties_of_class(self, rdflib_onto_node, rdflib_class):
         for a_triple in self._ontology_graph.triples((None, RDFS.domain, rdflib_class)):
             target_property = a_triple[0]
+            # print("WEEEE", rdflib_onto_node, rdflib_class)
             for a_triple in self._ontology_graph.triples((target_property, RDFS.range, None)):
                 target_type = a_triple[2]
                 self._add_enriched_triple(rdflib_onto_node, target_property, target_type)
 
     def _add_enriched_triple(self, rdflib_node, target_property, target_type):
+        # print("Weeeee", rdflib_node, target_property, target_type)
         self._add_fake_node_if_needed(rdflib_node)
         self._add_fake_node_if_needed(target_type)
         self._kb.add((self._fake_node_of_a_class(rdflib_node), target_property, self._fake_node_of_a_class(target_type)))
@@ -251,7 +255,10 @@ class OntoShaper(Shaper):
         return result
 
     def _serialize_graph(self):
-        return self._ontology_graph.serialize(format="turtle")
+        # result = self._kb.serialize(format="turtle")
+        # print(str(result).replace("\\n", "\n"))
+        # return result
+        return self._kb.serialize(format="turtle")
 
 
     def _belongs_to_excluded_namespace(self, rdflib_node):
@@ -270,13 +277,17 @@ class OntoShaper(Shaper):
             return str_node[:str_node.rfind("/") + 1]
 
     def _build_onto_shape_map(self):
-        json_map = [self._node_selector_for_a_node(a_node) for a_node in self._target_nodes] + \
+        json_map = [self._node_selector_for_a_node(a_node) for a_node in self._original_target_nodes] + \
                    [self._node_selector_for_a_node(a_node) for a_node in self._secondary_targets]
-        return json.dumps(json_map)
+        # return json.dumps(json_map)
+        result = json.dumps(json_map)
+        print(result)
+        return result
 
 
     def _node_selector_for_a_node(self, a_node):
-        return {_KEY_NODE_SELECTOR : "<" + a_node + ">",
+        # print("Mhan llamau", a_node)
+        return {_KEY_NODE_SELECTOR : "<" + a_node + "_instance>",
                 _KEY_LABEL: "<" + self._shape_label_for_a_node(a_node) + ">"}
 
     def _shape_label_for_a_node(self, node_uri):
