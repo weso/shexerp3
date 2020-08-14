@@ -4,15 +4,15 @@ from shexer.consts import JSON
 from rdflib import Graph, RDF, URIRef, RDFS, OWL, XSD, Literal
 from shexer.io.shape_map.shape_map_parser import _KEY_LABEL, _KEY_NODE_SELECTOR
 from shexer.utils.uri import XSD_NAMESPACE
+import json
 
 XSD_STRING = XSD.string
 XSD_INTEGER = XSD.integer
 XSD_DATE = XSD.date
+XSD_DATE_TIME = XSD.dateTime
 XSD_BOOL = XSD.boolean
 XSD_TIME = XSD.time
 XSD_DECIMAL = XSD.decimal
-
-import json
 
 
 class OntoShaper(Shaper):
@@ -56,7 +56,8 @@ class OntoShaper(Shaper):
                          shape_map_format=JSON,
                          namespaces_to_ignore=namespaces_to_ignore,
                          remove_empty_shapes=False,
-                         depth_for_building_subgraph=depth)
+                         depth_for_building_subgraph=depth,
+                         disable_comments=True)
 
 
     def _fill_kb_with_initial_instances(self):
@@ -95,25 +96,20 @@ class OntoShaper(Shaper):
             fake = Literal("a", datatype=XSD_STRING)
         elif target_type == XSD_BOOL:
             fake = Literal("true", datatype=XSD_BOOL)
-            # fake = '"true"^^<http://www.w3.org/2001/XMLSchema#boolean>'
         elif target_type == XSD_DATE:
             fake = Literal("1/10/1001", datatype=XSD_DATE)
-            # fake = '"1/10/1001"^^<http://www.w3.org/2001/XMLSchema#date>'
         elif target_type == XSD_TIME:
             fake = Literal("21:32:52+02:00", datatype=XSD_TIME)
-            # fake = '"21:32:52+02:00"^^<http://www.w3.org/2001/XMLSchema#time>'
+        elif target_type == XSD_DATE_TIME:
+            fake = Literal("YYYY-MM-DDThh:mm:ss", datatype=XSD_DATE_TIME)
         elif target_type == XSD_INTEGER:
             fake = Literal("1", datatype=XSD_INTEGER)
-            # fake = '"1"^^<http://www.w3.org/2001/XMLSchema#integer>'
         elif target_type == XSD_DECIMAL:
             fake = Literal("1.1", datatype=XSD_DECIMAL)
-            # fake = '"1.1"^^<http://www.w3.org/2001/XMLSchema#decimal>'
         elif target_type == RDFS.Literal:
             fake = Literal("A", datatype=RDFS.Literal)
-            # fake = '"a"'
         elif target_type == RDF.langString:
             fake = Literal("A", lang="en")
-            # fake = '"a"@en'
         else:
             raise ValueError("unknown literal type: " + str(target_type))
         self._add_fake_node_to_dict(class_n=target_type,
@@ -130,7 +126,6 @@ class OntoShaper(Shaper):
 
     def _decorate_target_nodes(self):
         for a_target_node in self._original_target_nodes:
-            # print("Winba!", a_target_node)
             self._enrichment_dict[a_target_node] = self._locate_classes(a_target_node)
         self._enrich_target_nodes(self._enrichment_dict)
 
@@ -164,17 +159,19 @@ class OntoShaper(Shaper):
             self._enrich_target_nodes(enrich_dict)
 
 
-    def _get_secondary_types_of_seed_nodes(self, seed_nodes):
+    def _get_secondary_types_of_seed_nodes(self, seed_types):
         result = set()
-        for a_node in seed_nodes:
-            for a_fake_node in self._get_secondary_fake_targets_of_a_node(a_node):
+        for a_node in seed_types:
+            for a_fake_node in self._get_secondary_fake_targets_of_a_type(a_node):
                 result.add(self._class_of_fake_node(a_fake_node))
         return result
 
-    def _get_secondary_fake_targets_of_a_node(self, target_node):
+    def _get_secondary_fake_targets_of_a_type(self, target_type):
         result = set()
-        for a_triple in self._ontology_graph.triples((URIRef(target_node), None, None)):
-            if not isinstance(a_triple[2], Literal) and \
+        for a_triple in self._kb.triples((self._fake_node_of_a_class(target_type), None, None)):
+            if a_triple[1] == RDF.type:
+                result.add(self._fake_node_of_a_class(a_triple[2]))
+            elif not isinstance(a_triple[2], Literal) and \
                     not self._belongs_to_excluded_namespace(a_triple[1]) and \
                     not a_triple[2] == OWL.Class:
                 result.add(a_triple[2])
@@ -189,16 +186,8 @@ class OntoShaper(Shaper):
         :return:
         """
         for a_node, classes in enrichment_dict.items():
-            # print("wiiii", a_node, classes)
             for a_class in classes:
-                # rdflib_class = URIRef(a_class)
-                # print("weeee", a_node, a_class)
                 self._add_properties_of_class(a_node, a_class)
-                # self._add_object_properties(rdflib_node, rdflib_class)
-                # self._add_literal_properties(rdflib_node, rdflib_class)
-                # self._add_general_properties(rdflib_node, rdflib_class)
-                # for a_triple in self._ontology_graph.triples((rdflib_class, None, None)):
-                #     self._ontology_graph.add((rdflib_node, a_triple[1], a_triple[2]))
 
 
     def _add_fake_node_to_dict(self, class_n, instance_n):
@@ -209,9 +198,6 @@ class OntoShaper(Shaper):
         return self._fake_nodes_dict[class_n]
 
     def _class_of_fake_node(self, instance_n):
-        # if instance_n in self._target_nodes:
-        #     return instance_n
-        # print(self._reversed_fake_nodes_dict)
         return self._reversed_fake_nodes_dict[instance_n]
 
     def _locate_classes(self, a_target_node):
@@ -236,13 +222,11 @@ class OntoShaper(Shaper):
     def _add_properties_of_class(self, rdflib_onto_node, rdflib_class):
         for a_triple in self._ontology_graph.triples((None, RDFS.domain, rdflib_class)):
             target_property = a_triple[0]
-            # print("WEEEE", rdflib_onto_node, rdflib_class)
             for a_triple in self._ontology_graph.triples((target_property, RDFS.range, None)):
                 target_type = a_triple[2]
                 self._add_enriched_triple(rdflib_onto_node, target_property, target_type)
 
     def _add_enriched_triple(self, rdflib_node, target_property, target_type):
-        # print("Weeeee", rdflib_node, target_property, target_type)
         self._add_fake_node_if_needed(rdflib_node)
         self._add_fake_node_if_needed(target_type)
         self._kb.add((self._fake_node_of_a_class(rdflib_node), target_property, self._fake_node_of_a_class(target_type)))
@@ -255,9 +239,6 @@ class OntoShaper(Shaper):
         return result
 
     def _serialize_graph(self):
-        # result = self._kb.serialize(format="turtle")
-        # print(str(result).replace("\\n", "\n"))
-        # return result
         return self._kb.serialize(format="turtle")
 
 
@@ -279,14 +260,13 @@ class OntoShaper(Shaper):
     def _build_onto_shape_map(self):
         json_map = [self._node_selector_for_a_node(a_node) for a_node in self._original_target_nodes] + \
                    [self._node_selector_for_a_node(a_node) for a_node in self._secondary_targets]
-        # return json.dumps(json_map)
-        result = json.dumps(json_map)
-        print(result)
-        return result
+        return json.dumps(json_map)
+        # result = json.dumps(json_map)
+        # print(result)
+        # return result
 
 
     def _node_selector_for_a_node(self, a_node):
-        # print("Mhan llamau", a_node)
         return {_KEY_NODE_SELECTOR : "<" + a_node + "_instance>",
                 _KEY_LABEL: "<" + self._shape_label_for_a_node(a_node) + ">"}
 

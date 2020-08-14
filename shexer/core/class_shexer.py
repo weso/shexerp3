@@ -19,13 +19,9 @@ class ClassShexer(object):
                                                                                 original_shape_map=original_shape_map)
 
     def shex_classes(self, acceptance_threshold=0):
-        print(1)
         self._build_shapes(acceptance_threshold)
-        print(2)
         self._clean_shapes()
-        print(3)
         self._sort_shapes()
-        print(4)
 
         return self._shapes_list
 
