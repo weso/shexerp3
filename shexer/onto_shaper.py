@@ -145,17 +145,15 @@ class OntoShaper(Shaper):
     def _decorate_secondary_layers(self, seed_nodes):
 
         while len(seed_nodes) > 0:
-            print("Pssch", self._depth)
-            # TODO: CONTINUE HERE. DO NOT EXPLORE NODES ALREADY EXPLORED
             self._depth += 1
             types_to_decorate = self._get_secondary_types_of_seed_nodes(seed_nodes)
             enrich_dict = {}
             seed_nodes = set()  # Overwrite seed_nodes, already used to get the types to decorate
             for a_type in types_to_decorate:
-                if a_type not in self._original_target_nodes:
+                if a_type not in self._original_target_nodes and a_type not in self._secondary_targets:
                     self._secondary_targets.add(a_type)  # Update secondary_types set, to build an adequate shape_map
-                seed_nodes.add(a_type)
-                enrich_dict[a_type] = self._locate_classes(a_type)
+                    seed_nodes.add(a_type)
+                    enrich_dict[a_type] = self._locate_classes(a_type)
             self._enrich_target_nodes(enrich_dict)
 
 
