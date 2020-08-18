@@ -21,15 +21,14 @@ class OntoShaper(Shaper):
                  target_namespaces=None,
                  file_format=TURTLE,
                  extra_ontologies_dict=None,
-                 namespaces_to_ignore=None,
-                 depth=1):
+                 namespaces_to_ignore=None):
         self._ontology_file = ontology_file
         self._target_namespaces = [] if target_namespaces is None else target_namespaces
 
         self._ontology_graph = self._build_rdflib_graph(file_format)
         self._kb = Graph()
 
-        self._depth = depth
+        self._depth = 1  # Will be increased later!
         self._namespaces_to_ignore = namespaces_to_ignore  # repeated in superclass, but I need it here
 
         self._external_ontologies_added = set()
@@ -56,7 +55,7 @@ class OntoShaper(Shaper):
                          shape_map_format=JSON,
                          namespaces_to_ignore=namespaces_to_ignore,
                          remove_empty_shapes=False,
-                         depth_for_building_subgraph=depth,
+                         depth_for_building_subgraph=self._depth,
                          disable_comments=True)
 
 
@@ -130,8 +129,6 @@ class OntoShaper(Shaper):
         self._enrich_target_nodes(self._enrichment_dict)
 
     def _decorate_secondary_targets(self):
-        if self._depth <= 1:
-            return
         temporal_last_depth_explored = set()
         for elem in self._original_target_nodes:
             temporal_last_depth_explored.add(elem)
@@ -146,16 +143,17 @@ class OntoShaper(Shaper):
 
 
     def _decorate_secondary_layers(self, seed_nodes):
-        while self._depth > 1:
-            self._depth -= 1
+
+        while len(seed_nodes) > 0:
+            self._depth += 1
             types_to_decorate = self._get_secondary_types_of_seed_nodes(seed_nodes)
             enrich_dict = {}
             seed_nodes = set()  # Overwrite seed_nodes, already used to get the types to decorate
             for a_type in types_to_decorate:
-                if a_type not in self._original_target_nodes:
+                if a_type not in self._original_target_nodes and a_type not in self._secondary_targets:
                     self._secondary_targets.add(a_type)  # Update secondary_types set, to build an adequate shape_map
-                seed_nodes.add(a_type)
-                enrich_dict[a_type] = self._locate_classes(a_type)
+                    seed_nodes.add(a_type)
+                    enrich_dict[a_type] = self._locate_classes(a_type)
             self._enrich_target_nodes(enrich_dict)
 
 

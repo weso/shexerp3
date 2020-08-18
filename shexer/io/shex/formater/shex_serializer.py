@@ -175,7 +175,7 @@ class ShexSerializer(object):
             result.append(original_statements[i])
 
         result = self._group_constraints_with_same_prop_and_obj(result)
-        # result = self._group_IRI_constraints(result)
+        result = self._group_IRI_constraints(result)
         # result = self._group_constraints_with_same_prop_but_different_obj(result)
 
         result.sort(reverse=True, key=lambda x: x.probability)  # Restoring order completly
@@ -211,9 +211,9 @@ class ShexSerializer(object):
                         for a_statement in group_to_decide:
                             result.append(a_statement)
                     else:
-                        # pass
-                        for a_new_statement in self._compose_statements_with_IRI_objects(group_to_decide):
-                            result.append(a_new_statement)
+                        self._remove_IRI_statements_if_useles(group_to_decide)
+                        for a_statement in group_to_decide:
+                            result.append(a_statement)
         return result
 
     def _group_constraints_with_same_prop_and_obj(self, candidate_statements):
