@@ -13,7 +13,7 @@ class ShexSerializer(object):
     def __init__(self, target_file, shapes_list, namespaces_dict=None,
                  tolerance_to_keep_similar_rules=0.01, keep_less_specific=True, string_return=False,
                  instantiation_property_str=RDF_TYPE_STR, discard_useless_positive_closures=True,
-                 all_compliant_mode=True, disable_comments=False):
+                 all_compliant_mode=True, disable_comments=False, generalize_empty_shapes=True):
         self._target_file = target_file
         self._shapes_list = shapes_list
         # self._aceptance_theshold = aceptance_threshold
@@ -27,6 +27,7 @@ class ShexSerializer(object):
         self._discard_useless_positive_closures = discard_useless_positive_closures
         self._all_compliant_mode = all_compliant_mode
         self._disable_comments = disable_comments
+        self._generalize_empty_shapes = generalize_empty_shapes
 
     def serialize_shex(self):
 
@@ -62,11 +63,28 @@ class ShexSerializer(object):
         self._write_line("PREFIX : <http://weso.es/shapes/>")
 
     def _serialize_shape(self, a_shape):
-        self._serialize_shape_name(a_shape)
-        self._serialize_opening_of_rules()
-        self._serialize_shape_rules(a_shape)
-        self._serialize_closure_of_rule()
+        if self._generalize_empty_shapes and self._is_an_empty_shape(a_shape):
+            self._serialize_empty_shape(a_shape)
+        else:
+            self._serialize_shape_name(a_shape)
+            self._serialize_opening_of_rules()
+            self._serialize_shape_rules(a_shape)
+            self._serialize_closure_of_rule()
+            self._serialize_shape_gap()
+
+    def _is_an_empty_shape(self, shape):
+        return shape.n_statements == 0
+
+    def _serialize_empty_shape(self, shape):
+        self._serialize_empty_shape_header(shape)
         self._serialize_shape_gap()
+
+    def _serialize_empty_shape_header(self, shape):
+        line = shape.name.replace("@", ":")
+        if ":" not in line:
+            line = "<" + line + ">"
+        line = line + " ."
+        self._write_line(line)
 
     def _flush(self):
         self._write_lines_buffer()
