@@ -175,7 +175,7 @@ class ShexSerializer(object):
             result.append(original_statements[i])
 
         result = self._group_constraints_with_same_prop_and_obj(result)
-        result = self._group_IRI_constraints(result)
+        # result = self._group_IRI_constraints(result)
         # result = self._group_constraints_with_same_prop_but_different_obj(result)
 
         result.sort(reverse=True, key=lambda x: x.probability)  # Restoring order completly
