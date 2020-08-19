@@ -227,9 +227,47 @@ class OntoShaper(Shaper):
     def _add_enriched_triple(self, rdflib_node, target_property, target_type):
         self._add_fake_node_if_needed(rdflib_node)
         self._add_fake_node_if_needed(target_type)
-        self._kb.add((self._fake_node_of_a_class(rdflib_node), target_property, self._fake_node_of_a_class(target_type)))
+        self._add_triple_to_kb(s=self._fake_node_of_a_class(rdflib_node),
+                               p=target_property,
+                               o=self._fake_node_of_a_class(target_type))
 
+    def _add_triple_to_kb(self, s, p, o):
+        if not type(o) == Literal:
+            self._kb.add((s, p, o))
+        else:
+            self._add_triple_with_literal_to_kb(s,p,o)
 
+    def _add_triple_with_literal_to_kb(self, s,p,o):
+        similar_triples = [a_triple for a_triple in self._kb.triples((s, p, None))]
+        if len(similar_triples) == 0 or not self._is_there_a_triple_with_a_literal_obj(similar_triples):
+            self._kb.add((s, p, o))
+        else:
+            self._manage_kb_to_keep_the_most_general_literal_triples(new_triple=(s,p,o),
+                                                                     current_triples=similar_triples)
+
+    def _manage_kb_to_keep_the_most_general_literal_triples(self, new_triple, current_triples):
+        # Case 1: If Literal is already in the current triples, thats the most general one, nothing to add
+        for a_triple in current_triples:
+            if a_triple[2].datatype == RDFS.Literal:
+                return
+        # Case 2: If the new triple is not Rdfs.Literal, then the triple can be added,
+        # it does not interfiere with the current ones once we checked that RDFS.Literal is
+        # not in the graph yet.
+        if new_triple[2].datatype != RDFS.Literal:
+            self._kb.add(new_triple)
+            return
+        # Case 3: the new triple contains RDFS.Literal and the old ones doesnt. We need to remove the old literals
+        # and add the new triple
+        for a_triple in current_triples:
+            if type(a_triple[2]) == Literal:
+                self._kb.remove(a_triple)
+        self._kb.add(new_triple)
+
+    def _is_there_a_triple_with_a_literal_obj(self, triple_list):
+        for a_triple in triple_list:
+            if type(a_triple[2]) == Literal:
+                return True
+        return False
 
     def _build_rdflib_graph(self, file_format):
         result = Graph()
