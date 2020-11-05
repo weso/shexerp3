@@ -21,7 +21,8 @@ class OntoShaper(Shaper):
                  target_namespaces=None,
                  file_format=TURTLE,
                  extra_ontologies_dict=None,
-                 namespaces_to_ignore=None):
+                 namespaces_to_ignore=None,
+                 all_kleene=False):
         self._ontology_file = ontology_file
         self._target_namespaces = [] if target_namespaces is None else target_namespaces
 
@@ -56,7 +57,8 @@ class OntoShaper(Shaper):
                          namespaces_to_ignore=namespaces_to_ignore,
                          remove_empty_shapes=False,
                          depth_for_building_subgraph=self._depth,
-                         disable_comments=True)
+                         disable_comments=True,
+                         all_kleene=all_kleene)
 
 
     def _fill_kb_with_initial_instances(self):

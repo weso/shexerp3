@@ -35,7 +35,8 @@ class Shaper(object):
                  shape_qualifiers_mode=False,
                  namespaces_for_qualifier_props=None,
                  remove_empty_shapes=True,
-                 disable_comments=False):
+                 disable_comments=False,
+                 all_kleene=False):
         """
 
         :param target_classes:
@@ -98,6 +99,7 @@ class Shaper(object):
 
         self._remove_empty_shapes=remove_empty_shapes
         self._disable_comments = disable_comments
+        self._all_kleene = all_kleene
 
         self._depth_for_building_subgraph = depth_for_building_subgraph
         self._track_classes_for_entities_at_last_depth_level = track_classes_for_entities_at_last_depth_level
@@ -140,23 +142,6 @@ class Shaper(object):
         if string_output:
             return AbstractProfileSerializer(self._profile).get_string_representation()
         return AbstractProfileSerializer(self._profile).write_profile_to_file(target_file=output_file)
-
-    def shex_ontology(self, string_output=False, output_file=None):
-        """
-
-        :param string_output:
-        :param output_file:
-        :return:
-        """
-        self._decorate_graph()
-        self._manipulate_shaper_to_adapt_input()
-        return self.shex_graph(string_output=string_output,
-                               output_file=output_file,
-                               output_format=SHEX,
-                               acceptance_threshold=0)
-
-    def _decorate_graph(self):
-        target_nodes = self._
 
 
     def shex_graph(self, string_output=False, output_file=None, output_format=SHEX, acceptance_threshold=0):
@@ -208,7 +193,8 @@ class Shaper(object):
                                     keep_less_specific=self._keep_less_specific,
                                     discard_useless_constraints_with_positive_closure=
                                     self._discard_useles_constraints_with_positive_closure,
-                                    disable_comments=self._disable_comments)
+                                    disable_comments=self._disable_comments,
+                                    all_kleene=self._all_kleene)
 
     def _build_class_profiler(self):
         return get_class_profiler(target_classes_dict=self._target_classes_dict,
